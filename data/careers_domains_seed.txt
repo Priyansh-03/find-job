@@ -1,0 +1,2 @@
+# Hostnames only, one per line — used by scripts/discover_career_web_sources.py
+careers.shopify.com

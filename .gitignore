@@ -1,0 +1,27 @@
+# Python
+.venv/
+**/.venv/
+__pycache__/
+*.py[cod]
+*$py.class
+.Python
+
+# Secrets
+.env
+.env.*
+!.env.example
+
+# Generated & local runs
+output/
+logs/
+*.log
+/jobs.csv
+
+# Personal job-search CSV (use input/user.example.csv as template)
+input/user.csv
+
+# OS / editor
+.idea/
+.vscode/
+*.swp
+.DS_Store

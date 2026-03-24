@@ -1,0 +1,830 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Job scrape dashboard</title>
+  <style>
+    :root {
+      --bg: #0f1419;
+      --panel: #1a2332;
+      --border: #2d3a4d;
+      --text: #e7ecf3;
+      --muted: #8b9bb0;
+      --accent: #3d9cf5;
+      --accent-dim: #2563a8;
+      --danger: #f07178;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: "Segoe UI", system-ui, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      line-height: 1.45;
+      min-height: 100vh;
+    }
+    .wrap { max-width: 1200px; margin: 0 auto; padding: 1.5rem; }
+    h1 { font-size: 1.35rem; font-weight: 600; margin: 0 0 0.25rem; }
+    .sub { color: var(--muted); font-size: 0.9rem; margin-bottom: 1.25rem; }
+    .grid {
+      display: grid;
+      gap: 1rem;
+      grid-template-columns: 1fr 1fr;
+    }
+    @media (max-width: 800px) { .grid { grid-template-columns: 1fr; } }
+    .card {
+      background: var(--panel);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 1rem 1.1rem;
+    }
+    .card h2 { font-size: 0.85rem; text-transform: uppercase; letter-spacing: 0.06em; color: var(--muted); margin: 0 0 0.75rem; }
+    label { display: block; font-size: 0.85rem; color: var(--muted); margin-bottom: 0.35rem; }
+    select, input[type="text"] {
+      width: 100%;
+      padding: 0.5rem 0.65rem;
+      border-radius: 6px;
+      border: 1px solid var(--border);
+      background: var(--bg);
+      color: var(--text);
+      font-size: 0.95rem;
+    }
+    .row { display: flex; flex-wrap: wrap; align-items: center; gap: 1rem; margin-top: 0.75rem; }
+    .check {
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      cursor: pointer;
+      user-select: none;
+    }
+    .check input { width: 1.1rem; height: 1.1rem; accent-color: var(--accent); }
+    button.primary {
+      background: linear-gradient(180deg, var(--accent), var(--accent-dim));
+      color: #fff;
+      border: none;
+      padding: 0.55rem 1.25rem;
+      border-radius: 8px;
+      font-weight: 600;
+      cursor: pointer;
+      font-size: 0.95rem;
+    }
+    button.primary:disabled { opacity: 0.45; cursor: not-allowed; }
+    .loader {
+      display: none;
+      align-items: center;
+      gap: 0.5rem;
+      color: var(--muted);
+      font-size: 0.9rem;
+    }
+    .loader.on { display: inline-flex; }
+    .spinner {
+      width: 1rem; height: 1rem;
+      border: 2px solid var(--border);
+      border-top-color: var(--accent);
+      border-radius: 50%;
+      animation: spin 0.7s linear infinite;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+    .log {
+      font-family: ui-monospace, monospace;
+      font-size: 0.75rem;
+      background: var(--bg);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      padding: 0.5rem 0.65rem;
+      min-height: 12rem;
+      max-height: min(65vh, 720px);
+      overflow-y: auto;
+      white-space: pre-wrap;
+      word-break: break-word;
+      color: var(--muted);
+    }
+    .table-wrap {
+      overflow-x: auto;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      max-height: min(78vh, 920px);
+      overflow-y: auto;
+    }
+    table { width: 100%; border-collapse: collapse; font-size: 0.82rem; }
+    th, td { padding: 0.45rem 0.6rem; text-align: left; border-bottom: 1px solid var(--border); vertical-align: top; }
+    th { position: sticky; top: 0; background: var(--panel); z-index: 1; color: var(--muted); font-weight: 600; }
+    th:first-child {
+      position: sticky;
+      left: 0;
+      z-index: 3;
+      width: 2.75rem;
+      text-align: right;
+      font-variant-numeric: tabular-nums;
+    }
+    td.row-num {
+      position: sticky;
+      left: 0;
+      z-index: 1;
+      text-align: right;
+      font-variant-numeric: tabular-nums;
+      color: var(--muted);
+      background: var(--panel);
+      border-right: 1px solid var(--border);
+      width: 2.75rem;
+    }
+    tr:hover td.row-num { background: rgba(61, 156, 245, 0.12); }
+    tr:hover td { background: rgba(61, 156, 245, 0.06); }
+    a { color: var(--accent); }
+    .err { color: var(--danger); font-size: 0.9rem; margin-top: 0.5rem; }
+    .add-grid { display: grid; gap: 0.5rem; grid-template-columns: 1fr 1fr; }
+    @media (max-width: 600px) { .add-grid { grid-template-columns: 1fr; } }
+    button.secondary {
+      background: transparent;
+      color: var(--accent);
+      border: 1px solid var(--border);
+      padding: 0.45rem 0.9rem;
+      border-radius: 8px;
+      cursor: pointer;
+      font-size: 0.9rem;
+    }
+    .risk-ip-row { display: flex; flex-wrap: wrap; align-items: center; gap: 0.5rem 0.75rem; }
+    .risk-ip-row input[type="number"] {
+      width: 3.25rem;
+      padding: 0.35rem 0.4rem;
+      border-radius: 6px;
+      border: 1px solid var(--border);
+      background: var(--bg);
+      color: var(--text);
+      font-size: 0.9rem;
+    }
+    .source-chips-hint {
+      color: var(--muted);
+      font-size: 0.78rem;
+      margin: 0 0 0.4rem;
+      letter-spacing: 0.02em;
+    }
+    .source-chips {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: 0.4rem 0.5rem;
+      min-height: 1.5rem;
+      margin: 0 0 0.85rem;
+    }
+    .chip {
+      display: inline-block;
+      padding: 0.2rem 0.55rem;
+      border-radius: 999px;
+      font-size: 0.76rem;
+      font-weight: 600;
+      letter-spacing: 0.02em;
+      border: 1px solid transparent;
+      color: #f0f4fa;
+      max-width: 100%;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+    .chip--linkedin { background: #0a66c2; border-color: #378fe9; }
+    .chip--indeed { background: #2557a7; border-color: #4a7bc8; }
+    .chip--google { background: #1a73e8; border-color: #4285f4; }
+    .chip--greenhouse { background: #1b7f37; border-color: #2ea043; }
+    .chip--lever { background: #2d6a4f; border-color: #40916c; }
+    .chip--ashby { background: #5b21b6; border-color: #7c3aed; }
+    .chip--workday { background: #005cb9; border-color: #0875e1; }
+    .chip--netflix { background: #e50914; border-color: #ff3b44; color: #fff; }
+    .chip--spotify { background: #1db954; border-color: #1ed760; color: #0d0d0d; }
+    .chip--uber { background: #000; border-color: #333; color: #fff; }
+    .chip--jobvite { background: #6b4f2f; border-color: #8b6914; }
+    .chip--smartrecruiters { background: #0f766e; border-color: #14b8a6; }
+    .chip--remoteok { background: #b45309; border-color: #d97706; color: #fffbeb; }
+    .chip--himalayas { background: #0369a1; border-color: #0ea5e9; }
+    .chip--jobicy { background: #be185d; border-color: #ec4899; }
+    .chip--arbeitnow { background: #0e7490; border-color: #06b6d4; }
+    .chip--dayweek4 { background: #4d7c0f; border-color: #84cc16; color: #f7fee7; }
+    .chip--themuse { background: #9d174d; border-color: #db2777; }
+    .chip--workingnomads { background: #155e75; border-color: #0891b2; }
+    .chip--authenticjobs { background: #92400e; border-color: #d97706; color: #fffbeb; }
+    .chip--contentwritingjobs { background: #831843; border-color: #be185d; }
+    .chip--jobscollider { background: #4338ca; border-color: #6366f1; }
+    .chip--jobspresso { background: #0f766e; border-color: #2dd4bf; }
+    .chip--larajobs { background: #c2410c; border-color: #fb923c; color: #fff7ed; }
+    .chip--remotepython { background: #1d4ed8; border-color: #60a5fa; }
+    .chip--vuejobs { background: #047857; border-color: #34d399; color: #ecfdf5; }
+    .chip--landingjobs { background: #6d28d9; border-color: #a78bfa; }
+    .chip--realworkfromanywhere { background: #0f766e; border-color: #5eead4; }
+    .chip--weworkremotely { background: #b91c1c; border-color: #f87171; color: #fef2f2; }
+    .chip--unknown {
+      background: hsl(var(--chip-hue, 200), 42%, 26%);
+      border-color: hsl(var(--chip-hue, 200), 48%, 38%);
+      color: #e7ecf3;
+    }
+    .job-count { color: var(--text); font-weight: 600; }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <h1>Job scrape dashboard</h1>
+    <p class="sub">Reads <code>input/user.csv</code>. Check <strong>at least one</strong>: <strong>all job boards</strong> (Greenhouse, Ashby, Workday, JobSpy for Indeed/Google, …) or <strong>risk ip</strong> (JobSpy only: LinkedIn when checked, else Indeed). <strong>All job boards without risk ip does not run JobSpy for LinkedIn</strong>—check risk ip to add it (alone or together with all boards). <strong>Risk ip does not crawl Notion’s board directly</strong>—it only queries LinkedIn; a row can still link to Ashby/Notion if that is where the employer listed the job on LinkedIn. Experience columns in CSV are not used by the fetcher.</p>
+
+    <div class="grid">
+      <div class="card">
+        <h2>Input</h2>
+        <label for="userSel">User</label>
+        <select id="userSel"></select>
+        <div id="paramsUsed" class="sub" style="margin-top:0.5rem;font-size:0.82rem;line-height:1.45"></div>
+        <div class="row" style="flex-direction:column;align-items:flex-start;gap:0.5rem;margin-top:0.75rem">
+          <label class="check">
+            <input type="checkbox" id="allBoards" />
+            <span>all job boards</span>
+          </label>
+          <div class="risk-ip-row">
+            <label class="check" style="margin:0" title="Max jobs from JobSpy LinkedIn when risk ip runs it (full run + risk ip uses this cap for LinkedIn only).">
+              <input type="number" id="riskIpCount" min="1" max="50" value="3" />
+              <span>max jobs</span>
+            </label>
+            <label class="check" style="margin:0">
+              <input type="checkbox" id="riskIp" />
+              <span>risk ip (LinkedIn)</span>
+            </label>
+          </div>
+          <p class="sub" style="margin:0;font-size:0.8rem">Start scraping stays disabled until at least one option above is checked. Default <strong>3</strong> → up to 3 LinkedIn jobs when risk ip is on. With <strong>only</strong> risk ip, sources are JobSpy (LinkedIn)—not Greenhouse/Ashby crawlers. With <strong>only</strong> all job boards, JobSpy skips LinkedIn.</p>
+        </div>
+        <div class="row" style="margin-top:0.75rem">
+          <button type="button" class="primary" id="btnScrape">Start scraping</button>
+          <div class="loader" id="loader"><span class="spinner"></span> Fetching jobs…</div>
+        </div>
+        <div class="err" id="errMain" hidden></div>
+        <h2 style="margin-top:1rem">Live log</h2>
+        <div class="log" id="logBox"></div>
+      </div>
+
+      <div class="card">
+        <h2>Add user → user.csv</h2>
+        <p class="sub" style="margin:0 0 0.5rem;font-size:0.8rem">Only these fields are read by the scraper (Name, Roles, Skills, Location). Leave <strong>Location</strong> blank to use the default hint <strong>india</strong>. Extra CSV columns are left empty when adding from here.</p>
+        <div class="add-grid" id="addFields"></div>
+        <div class="row" style="margin-top:0.75rem">
+          <button type="button" class="secondary" id="btnAddUser">Add user</button>
+        </div>
+        <div class="err" id="errAdd" hidden></div>
+      </div>
+    </div>
+
+    <div class="card" style="margin-top:1rem">
+      <h2>Output</h2>
+      <label class="check" style="margin:0 0 0.65rem; align-items:flex-start;">
+        <input type="checkbox" id="indiaOnlyOutput" style="margin-top:0.2rem" />
+        <span class="sub" style="margin:0;font-size:0.85rem;line-height:1.45">
+          <strong>India only</strong> — show rows that mention India, an Indian city, or a state/UT (table only; CSV on disk is unchanged).
+        </span>
+      </label>
+      <p class="sub" style="margin:0 0 0.75rem">Rows append live after URL de-duplication; CSV is rewritten under <code>output/jobs_&lt;name&gt;.csv</code>. <span id="jobCount" class="job-count"></span></p>
+      <p class="source-chips-hint">Sources seen (live)</p>
+      <div id="sourceChips" class="source-chips" aria-label="Sources seen in this output"></div>
+      <div class="table-wrap">
+        <table>
+          <thead><tr id="theadRow"></tr></thead>
+          <tbody id="tbody"></tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    const INDIA_OUTPUT_FILTER_TOKENS = {{ india_output_filter_tokens | tojson }};
+
+    const userSel = document.getElementById("userSel");
+    const allBoards = document.getElementById("allBoards");
+    const riskIpCount = document.getElementById("riskIpCount");
+    const riskIp = document.getElementById("riskIp");
+    const btnScrape = document.getElementById("btnScrape");
+    const loader = document.getElementById("loader");
+    const logBox = document.getElementById("logBox");
+    const errMain = document.getElementById("errMain");
+    const errAdd = document.getElementById("errAdd");
+    const theadRow = document.getElementById("theadRow");
+    const tbody = document.getElementById("tbody");
+    const sourceChips = document.getElementById("sourceChips");
+    const addFields = document.getElementById("addFields");
+    const btnAddUser = document.getElementById("btnAddUser");
+    const paramsUsed = document.getElementById("paramsUsed");
+    const jobCount = document.getElementById("jobCount");
+    const indiaOnlyOutput = document.getElementById("indiaOnlyOutput");
+
+    /** Full result set for the current view (live scrape + reload); table is a filtered projection. */
+    let jobRowsBuffer = [];
+    let jobColumnKeys = [];
+
+    let fieldnames = [];
+    let formFields = ["Name", "Roles", "Skills", "Location"];
+    let users = [];
+    let es = null;
+
+    function showErr(el, msg) {
+      if (!msg) { el.hidden = true; el.textContent = ""; return; }
+      el.hidden = false;
+      el.textContent = msg;
+    }
+
+    function updateScrapeButton() {
+      const busy = loader.classList.contains("on");
+      const allowed = riskIp.checked || allBoards.checked;
+      btnScrape.disabled = busy || !allowed;
+    }
+
+    function setLoading(on) {
+      loader.classList.toggle("on", on);
+      updateScrapeButton();
+    }
+
+    allBoards.addEventListener("change", updateScrapeButton);
+    riskIp.addEventListener("change", updateScrapeButton);
+    indiaOnlyOutput.addEventListener("change", () => {
+      rerenderTableFromBuffer();
+    });
+
+    function renderAddForm() {
+      addFields.innerHTML = "";
+      for (const k of formFields) {
+        const d = document.createElement("div");
+        d.innerHTML = `<label>${escapeHtml(k)}<input type="text" data-k="${k}" placeholder="" /></label>`;
+        addFields.appendChild(d);
+      }
+    }
+
+    function refreshParamsPanel() {
+      const idx = parseInt(userSel.value, 10);
+      const u = users[idx];
+      if (!u) {
+        paramsUsed.innerHTML = "";
+        return;
+      }
+      paramsUsed.innerHTML =
+        "<strong>Scraper uses</strong> (this user’s CSV row): " +
+        "<strong>Name</strong> → output filename; " +
+        "<strong>Roles</strong> + <strong>Skills</strong> → keywords; " +
+        "<strong>Location</strong> → location hint (blank → <strong>india</strong>). " +
+        "<br/>Current: <em>Roles</em> " + escapeHtml(u.Roles || "—") +
+        " · <em>Skills</em> " + escapeHtml(u.Skills || "—") +
+        " · <em>Location</em> " +
+        escapeHtml((u.Location || "").trim() || "— (effective: india)");
+    }
+
+    function setTableHeaders(keys) {
+      theadRow.innerHTML =
+        '<th title="Row #">#</th>' +
+        keys.map((k) => `<th>${escapeHtml(k)}</th>`).join("");
+    }
+
+    function updateJobCount() {
+      if (!jobCount) return;
+      const shown = tbody.querySelectorAll("tr").length;
+      const total = jobRowsBuffer.length;
+      const on = indiaOnlyOutput && indiaOnlyOutput.checked;
+      let msg =
+        (on && total
+          ? "Showing " + shown + " of " + total + " loaded row(s) with India-only filter on."
+          : "Showing " + shown + " job row(s).") +
+        " Scroll the table and the live log for full output — nothing is truncated server-side.";
+      jobCount.textContent = msg;
+    }
+
+    function mergeOutputKeys(prevKeys, sampleRow) {
+      if (!sampleRow || typeof sampleRow !== "object") return prevKeys || [];
+      const union = new Set([...(prevKeys || []), ...Object.keys(sampleRow)]);
+      return outputColumnOrder([...union]);
+    }
+
+    function jobRowIndiaTextBlob(row) {
+      if (!row || typeof row !== "object") return "";
+      const parts = [];
+      for (const k of Object.keys(row)) {
+        const kl = String(k).toLowerCase();
+        if (kl === "link") continue;
+        const v = row[k];
+        if (v != null && String(v).trim() !== "") parts.push(String(v));
+      }
+      return parts.join(" ").toLowerCase();
+    }
+
+    function rowMatchesIndiaOutputFilter(row) {
+      const raw = jobRowIndiaTextBlob(row);
+      if (!raw) return false;
+      const s = " " + raw.replace(/\s+/g, " ").trim() + " ";
+      for (const tok of INDIA_OUTPUT_FILTER_TOKENS) {
+        const t = String(tok).trim().toLowerCase();
+        if (!t) continue;
+        if (t.includes(" ")) {
+          if (s.includes(" " + t + " ")) return true;
+        } else {
+          const esc = t.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+          if (new RegExp("(?:^|\\s)" + esc + "(?:\\s|$)", "i").test(s)) return true;
+        }
+      }
+      return false;
+    }
+
+    function visibleJobRows() {
+      if (!indiaOnlyOutput || !indiaOnlyOutput.checked) return jobRowsBuffer;
+      return jobRowsBuffer.filter(rowMatchesIndiaOutputFilter);
+    }
+
+    function rerenderTableFromBuffer() {
+      const keys =
+        jobColumnKeys.length > 0
+          ? jobColumnKeys
+          : ["title", "link", "company", "location", "source"];
+      const rows = visibleJobRows();
+      tbody.innerHTML = "";
+      setTableHeaders(keys);
+      let serial = 1;
+      for (const r of rows) {
+        const tr = document.createElement("tr");
+        const cells = [`<td class="row-num">${serial}</td>`];
+        serial += 1;
+        for (const k of keys) {
+          const v = r[k] ?? "";
+          const kl = k.toLowerCase();
+          if (kl === "link" && v) {
+            cells.push(`<td><a href="${escapeHtml(v)}" target="_blank" rel="noopener">link</a></td>`);
+            continue;
+          }
+          if (kl === "source") {
+            cells.push(`<td>${escapeHtml(formatSourceForTable(v))}</td>`);
+            continue;
+          }
+          if (kl === "location" && !String(v).trim()) {
+            cells.push("<td>—</td>");
+            continue;
+          }
+          cells.push(`<td>${escapeHtml(String(v))}</td>`);
+        }
+        tr.innerHTML = cells.join("");
+        tbody.appendChild(tr);
+      }
+      updateJobCount();
+    }
+
+    function escapeHtml(s) {
+      const d = document.createElement("div");
+      d.textContent = s;
+      return d.innerHTML;
+    }
+
+    /** --- Source chips (first-seen order, split on + in merged sources) --- */
+    const sourceChipOrder = [];
+    const sourceChipSeen = new Set();
+
+    function clearSourceChips() {
+      sourceChipOrder.length = 0;
+      sourceChipSeen.clear();
+      sourceChips.innerHTML = "";
+    }
+
+    function getRowSourceRaw(row) {
+      if (!row || typeof row !== "object") return "";
+      for (const k of Object.keys(row)) {
+        if (String(k).toLowerCase() === "source") {
+          const v = row[k];
+          return v == null ? "" : String(v).trim();
+        }
+      }
+      return "";
+    }
+
+    function tokenizeSourceString(raw) {
+      if (!raw) return [];
+      return String(raw)
+        .split("+")
+        .map((s) => s.trim().toLowerCase())
+        .filter(Boolean);
+    }
+
+    function titleCaseSlug(slug) {
+      return slug
+        .split("-")
+        .filter(Boolean)
+        .map((w) => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase())
+        .join(" ");
+    }
+
+    /** Human-readable board names (slugs that titleCaseSlug would mangle). */
+    const SOURCE_LABEL_OVERRIDES = {
+      remoteok: "RemoteOK",
+      weworkremotely: "We Work Remotely",
+      dayweek4: "4 Day Week",
+      themuse: "The Muse",
+      workingnomads: "Working Nomads",
+      realworkfromanywhere: "Real Work From Anywhere",
+      contentwritingjobs: "Content Writing Jobs",
+      authenticjobs: "Authentic Jobs",
+      jobspresso: "Jobspresso",
+      larajobs: "Larajobs",
+      remotepython: "Remote Python",
+      vuejobs: "Vue Jobs",
+      landingjobs: "Landing Jobs",
+      jobscollider: "JobsCollider",
+      arbeitnow: "Arbeitnow",
+      jobicy: "Jobicy",
+      himalayas: "Himalayas",
+    };
+
+    function labelForSourceToken(key) {
+      const s = key.toLowerCase();
+      if (SOURCE_LABEL_OVERRIDES[s]) return SOURCE_LABEL_OVERRIDES[s];
+      if (s.startsWith("greenhouse-")) return "Greenhouse · " + titleCaseSlug(s.slice(11));
+      if (s.startsWith("lever-")) return "Lever · " + titleCaseSlug(s.slice(6));
+      if (s.startsWith("ashby-")) return "Ashby · " + titleCaseSlug(s.slice(6));
+      if (s.startsWith("workday-")) return "Workday · " + titleCaseSlug(s.slice(8));
+      if (s.startsWith("jobvite-")) return "Jobvite · " + titleCaseSlug(s.slice(8));
+      if (s.startsWith("smartrecruiters-")) return "SmartRecruiters · " + titleCaseSlug(s.slice(16));
+      if (s.startsWith("jobspy-")) {
+        const rest = s.slice(7);
+        if (rest === "linkedin") return "LinkedIn";
+        if (rest === "indeed") return "Indeed";
+        if (rest === "google") return "Google";
+        return "JobSpy · " + titleCaseSlug(rest);
+      }
+      if (s === "linkedin-listing") return "LinkedIn listing";
+      if (s === "indeed-listing") return "Indeed listing";
+      if (s === "glassdoor-listing") return "Glassdoor listing";
+      if (s === "naukri-listing") return "Naukri listing";
+      if (s.endsWith("-listing")) return titleCaseSlug(s.replace(/-listing$/, "")) + " listing";
+      if (s === "remotive") return "Remotive";
+      return titleCaseSlug(s);
+    }
+
+    /** Table cell: merged `a+b` → readable "A · B" (same labels as chips). */
+    function formatSourceForTable(raw) {
+      const s = String(raw ?? "").trim();
+      if (!s) return "—";
+      const parts = s.split("+").map((t) => t.trim()).filter(Boolean);
+      if (!parts.length) return "—";
+      return parts.map((tok) => labelForSourceToken(tok)).join(" · ");
+    }
+
+    function hashHue(str) {
+      let h = 0;
+      for (let i = 0; i < str.length; i++) h = (Math.imul(31, h) + str.charCodeAt(i)) | 0;
+      return Math.abs(h) % 360;
+    }
+
+    function chipModifierForToken(key) {
+      const t = key.toLowerCase().trim();
+      if (!t) return null;
+      if (t.startsWith("greenhouse-")) return "greenhouse";
+      if (t.startsWith("lever-")) return "lever";
+      if (t.startsWith("ashby-")) return "ashby";
+      if (t.startsWith("workday-")) return "workday";
+      if (t.startsWith("jobvite-")) return "jobvite";
+      if (t.startsWith("smartrecruiters-")) return "smartrecruiters";
+      if (t.includes("netflix")) return "netflix";
+      if (t.includes("spotify")) return "spotify";
+      if (t.includes("uber")) return "uber";
+      const exact = {
+        remoteok: "remoteok",
+        himalayas: "himalayas",
+        jobicy: "jobicy",
+        arbeitnow: "arbeitnow",
+        dayweek4: "dayweek4",
+        themuse: "themuse",
+        workingnomads: "workingnomads",
+        authenticjobs: "authenticjobs",
+        contentwritingjobs: "contentwritingjobs",
+        jobscollider: "jobscollider",
+        jobspresso: "jobspresso",
+        larajobs: "larajobs",
+        remotepython: "remotepython",
+        vuejobs: "vuejobs",
+        landingjobs: "landingjobs",
+        realworkfromanywhere: "realworkfromanywhere",
+        weworkremotely: "weworkremotely",
+        "jobspy-linkedin": "linkedin",
+        "jobspy-indeed": "indeed",
+        "jobspy-google": "google",
+      };
+      if (exact[t]) return exact[t];
+      if (t.includes("linkedin")) return "linkedin";
+      if (t.includes("indeed")) return "indeed";
+      if (t.includes("google")) return "google";
+      return null;
+    }
+
+    function renderSourceChips() {
+      sourceChips.innerHTML = "";
+      for (const key of sourceChipOrder) {
+        const span = document.createElement("span");
+        span.className = "chip";
+        const mod = chipModifierForToken(key);
+        if (mod) span.classList.add("chip--" + mod);
+        else {
+          span.classList.add("chip--unknown");
+          span.style.setProperty("--chip-hue", String(hashHue(key)));
+        }
+        span.textContent = labelForSourceToken(key);
+        span.title = key;
+        sourceChips.appendChild(span);
+      }
+    }
+
+    function registerSourcesFromRows(rows) {
+      if (!rows?.length) return;
+      let added = false;
+      for (const row of rows) {
+        const raw = getRowSourceRaw(row);
+        for (const tok of tokenizeSourceString(raw)) {
+          if (sourceChipSeen.has(tok)) continue;
+          sourceChipSeen.add(tok);
+          sourceChipOrder.push(tok);
+          added = true;
+        }
+      }
+      if (added) renderSourceChips();
+    }
+
+    function rebuildChipsFromAllRows(rows) {
+      clearSourceChips();
+      registerSourcesFromRows(rows || []);
+    }
+
+    const OUTPUT_SKIP_COLS = new Set(["category", "job_type", "published"]);
+
+    /** Drop category/job_type/published; put title first, then link, company, source, then any other columns. */
+    function outputColumnOrder(allKeys) {
+      const filtered = allKeys.filter(
+        (k) => k && !OUTPUT_SKIP_COLS.has(String(k).toLowerCase())
+      );
+      const preferred = ["title", "link", "company", "location", "source"];
+      const lower = (k) => String(k).toLowerCase();
+      const remaining = [...filtered];
+      const out = [];
+      for (const p of preferred) {
+        const i = remaining.findIndex((k) => lower(k) === p);
+        if (i >= 0) {
+          out.push(remaining[i]);
+          remaining.splice(i, 1);
+        }
+      }
+      for (const k of remaining) out.push(k);
+      return out;
+    }
+
+    async function loadUsers() {
+      const r = await fetch("/api/users");
+      const j = await r.json();
+      fieldnames = j.fieldnames || [];
+      formFields = j.form_fields || formFields;
+      users = j.users || [];
+      userSel.innerHTML = users.map((u, i) => {
+        const n = u.Name || `(row ${i})`;
+        return `<option value="${i}">${escapeHtml(n)}</option>`;
+      }).join("");
+      renderAddForm();
+      refreshParamsPanel();
+    }
+
+    async function loadJobsForSelection(options = {}) {
+      const clearLog = options.clearLog !== false;
+      const idx = parseInt(userSel.value, 10);
+      if (Number.isNaN(idx) || !users[idx]) return;
+      const fromServer =
+        typeof options.jobsForUser === "string" ? options.jobsForUser.trim() : "";
+      const name =
+        fromServer || (users[idx].Name || "").trim() || "(unnamed)";
+      if (clearLog) logBox.textContent = "";
+      showErr(errMain, "");
+      let j;
+      try {
+        const r = await fetch("/api/jobs?" + new URLSearchParams({ name }));
+        if (!r.ok) {
+          showErr(errMain, "Could not load jobs (" + r.status + ").");
+          return;
+        }
+        j = await r.json();
+      } catch (e) {
+        showErr(errMain, "Could not load jobs: " + (e && e.message ? e.message : String(e)));
+        return;
+      }
+      const rows = j.rows || [];
+      jobColumnKeys =
+        rows.length > 0
+          ? outputColumnOrder(Object.keys(rows[0]))
+          : ["title", "link", "company", "location", "source"];
+      jobRowsBuffer = rows.map((r) => ({ ...r }));
+      theadRow.innerHTML = "";
+      rerenderTableFromBuffer();
+      rebuildChipsFromAllRows(jobRowsBuffer);
+    }
+
+    userSel.addEventListener("change", () => {
+      if (es) es.close();
+      refreshParamsPanel();
+      loadJobsForSelection();
+    });
+
+    btnScrape.addEventListener("click", async () => {
+      showErr(errMain, "");
+      if (es) es.close();
+      const idx = parseInt(userSel.value, 10);
+      const r = await fetch("/api/scrape", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          user_index: idx,
+          risk_ip: riskIp.checked,
+          all_job_boards: allBoards.checked,
+          risk_jobspy_per_site: Math.min(
+            50,
+            Math.max(1, parseInt(String(riskIpCount.value), 10) || 3)
+          ),
+        }),
+      });
+      const j = await r.json().catch(() => ({}));
+      if (!r.ok) {
+        showErr(errMain, j.error || r.statusText);
+        return;
+      }
+      tbody.innerHTML = "";
+      theadRow.innerHTML = "";
+      jobRowsBuffer = [];
+      jobColumnKeys = [];
+      clearSourceChips();
+      if (jobCount) jobCount.textContent = "";
+      logBox.textContent = "";
+      setLoading(true);
+
+      es = new EventSource("/api/stream/" + j.token);
+      es.onmessage = (ev) => {
+        let data;
+        try {
+          data = JSON.parse(ev.data);
+        } catch {
+          showErr(errMain, "Live stream sent invalid JSON; check server logs.");
+          return;
+        }
+        if (data.event === "started") {
+          const n = data.source_count ?? "?";
+          logBox.textContent += `Started (${n} sources)…\n`;
+          logBox.scrollTop = logBox.scrollHeight;
+        }
+        if (data.event === "log") {
+          logBox.textContent += (data.line || "") + "\n";
+          logBox.scrollTop = logBox.scrollHeight;
+        }
+        if (data.event === "rows" && data.rows?.length) {
+          jobColumnKeys = mergeOutputKeys(jobColumnKeys, data.rows[0]);
+          for (const r of data.rows) jobRowsBuffer.push({ ...r });
+          rerenderTableFromBuffer();
+          registerSourcesFromRows(data.rows);
+        }
+        if (data.event === "done") {
+          setLoading(false);
+          es.close();
+          es = null;
+          void loadJobsForSelection({
+            clearLog: false,
+            jobsForUser: data.user || "",
+          });
+        }
+        if (data.event === "error") {
+          showErr(errMain, data.message || "Error");
+          setLoading(false);
+          es.close();
+          es = null;
+        }
+      };
+      es.onerror = () => {
+        setLoading(false);
+        if (es) {
+          es.close();
+          es = null;
+        }
+      };
+    });
+
+    btnAddUser.addEventListener("click", async () => {
+      showErr(errAdd, "");
+      const payload = {};
+      addFields.querySelectorAll("input[data-k]").forEach((inp) => {
+        payload[inp.dataset.k] = inp.value.trim();
+      });
+      const r = await fetch("/api/users", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+      const j = await r.json().catch(() => ({}));
+      if (!r.ok) {
+        showErr(errAdd, j.error || "Failed");
+        return;
+      }
+      await loadUsers();
+      userSel.value = String(users.length - 1);
+      addFields.querySelectorAll("input").forEach((i) => { i.value = ""; });
+      await loadJobsForSelection();
+    });
+
+    loadUsers().then(() => {
+      void loadJobsForSelection({ clearLog: true });
+      updateScrapeButton();
+    });
+  </script>
+</body>
+</html>

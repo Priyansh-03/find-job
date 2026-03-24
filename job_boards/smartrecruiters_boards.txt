@@ -1,0 +1,2 @@
+# One SmartRecruiters careers slug per line (careers.smartrecruiters.com/{slug})
+# Example: Shopify

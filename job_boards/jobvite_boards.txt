@@ -1,0 +1,2 @@
+# One Jobvite board slug per line (jobs.jobvite.com/{slug}-careers)
+# Example: acme
