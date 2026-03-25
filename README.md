@@ -14,7 +14,6 @@ This repo scrapes job listings from multiple sources and lets you review results
 ### 1) Install dependencies
 
 ```bash
-cd "/home/priyanshsrivastava/Office/Programs/misc/scrape jobs"
 python3 -m venv .venv
 .venv/bin/python -m pip install --upgrade pip
 .venv/bin/python -m pip install -r requirements.txt
@@ -37,7 +36,6 @@ Edit `input/user.csv`:
 ## Run locally (dashboard)
 
 ```bash
-cd "/home/priyanshsrivastava/Office/Programs/misc/scrape jobs"
 .venv/bin/python dashboard_app.py
 ```
 
