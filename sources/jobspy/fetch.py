@@ -27,9 +27,15 @@ def _rows_to_jobs(df, *, category: str = "") -> list[dict]:
         company = row.get("company")
         if pd.isna(company):
             company = ""
+        # JobSpy exposes both:
+        # - `job_url_direct`: usually the original host (e.g. linkedin.com)
+        # - `job_url`: sometimes the redirect/apply target host (e.g. a company's ATS)
+        # For "LinkedIn source" we want the LinkedIn job URL so clicking stays on LinkedIn.
+        job_url_direct = row.get("job_url_direct", "")
+        job_url = row.get("job_url", "")
         jobs.append({
             "title": str(row.get("title", "")),
-            "link": str(row.get("job_url", "") or row.get("job_url_direct", "")) or "",
+            "link": str(job_url_direct or job_url or "") or "",
             "company": str(company) if company else "",
             "category": category,
             "job_type": "" if pd.isna(row.get("job_type")) else str(row.get("job_type", "")),

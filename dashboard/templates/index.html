@@ -6,14 +6,14 @@
   <title>Job scrape dashboard</title>
   <style>
     :root {
-      --bg: #0f1419;
-      --panel: #1a2332;
-      --border: #2d3a4d;
-      --text: #e7ecf3;
-      --muted: #8b9bb0;
-      --accent: #3d9cf5;
-      --accent-dim: #2563a8;
-      --danger: #f07178;
+      --bg: #f4f7fb;
+      --panel: #ffffff;
+      --border: #d7e0ec;
+      --text: #1f2937;
+      --muted: #64748b;
+      --accent: #2563eb;
+      --accent-dim: #1d4ed8;
+      --danger: #dc2626;
     }
     * { box-sizing: border-box; }
     body {
@@ -24,9 +24,9 @@
       line-height: 1.45;
       min-height: 100vh;
     }
-    .wrap { max-width: 1200px; margin: 0 auto; padding: 1.5rem; }
+    .wrap { max-width: 1280px; margin: 0 auto; padding: 1rem 1.25rem; }
     h1 { font-size: 1.35rem; font-weight: 600; margin: 0 0 0.25rem; }
-    .sub { color: var(--muted); font-size: 0.9rem; margin-bottom: 1.25rem; }
+    .sub { color: var(--muted); font-size: 0.86rem; margin-bottom: 0.6rem; }
     .grid {
       display: grid;
       gap: 1rem;
@@ -37,7 +37,7 @@
       background: var(--panel);
       border: 1px solid var(--border);
       border-radius: 10px;
-      padding: 1rem 1.1rem;
+      padding: 0.85rem 0.95rem;
     }
     .card h2 { font-size: 0.85rem; text-transform: uppercase; letter-spacing: 0.06em; color: var(--muted); margin: 0 0 0.75rem; }
     label { display: block; font-size: 0.85rem; color: var(--muted); margin-bottom: 0.35rem; }
@@ -46,7 +46,7 @@
       padding: 0.5rem 0.65rem;
       border-radius: 6px;
       border: 1px solid var(--border);
-      background: var(--bg);
+      background: #ffffff;
       color: var(--text);
       font-size: 0.95rem;
     }
@@ -89,12 +89,12 @@
     .log {
       font-family: ui-monospace, monospace;
       font-size: 0.75rem;
-      background: var(--bg);
+      background: #f8fafc;
       border: 1px solid var(--border);
       border-radius: 6px;
       padding: 0.5rem 0.65rem;
       min-height: 12rem;
-      max-height: min(65vh, 720px);
+      max-height: min(72vh, 820px);
       overflow-y: auto;
       white-space: pre-wrap;
       word-break: break-word;
@@ -104,7 +104,7 @@
       overflow-x: auto;
       border: 1px solid var(--border);
       border-radius: 8px;
-      max-height: min(78vh, 920px);
+      max-height: min(82vh, 1020px);
       overflow-y: auto;
     }
     table { width: 100%; border-collapse: collapse; font-size: 0.82rem; }
@@ -125,7 +125,7 @@
       text-align: right;
       font-variant-numeric: tabular-nums;
       color: var(--muted);
-      background: var(--panel);
+      background: #f8fafc;
       border-right: 1px solid var(--border);
       width: 2.75rem;
     }
@@ -217,12 +217,52 @@
       color: #e7ecf3;
     }
     .job-count { color: var(--text); font-weight: 600; }
+    .all-boards-extra {
+      margin-left: 1.35rem;
+      padding: 0.35rem 0 0;
+    }
+    .all-boards-extra label { gap: 0.5rem; }
+    .all-boards-extra input[type="number"] {
+      width: 3.25rem;
+      padding: 0.35rem 0.4rem;
+      border-radius: 6px;
+      border: 1px solid var(--border);
+      background: var(--bg);
+      color: var(--text);
+      font-size: 0.9rem;
+    }
+    .all-boards-extra.muted { opacity: 0.5; }
+    .log-panel {
+      margin-top: 1rem;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      background: #f8fafc;
+      overflow: hidden;
+    }
+    .log-panel summary {
+      cursor: pointer;
+      list-style: none;
+      user-select: none;
+      padding: 0.55rem 0.65rem;
+      color: var(--muted);
+      font-size: 0.82rem;
+      font-weight: 600;
+      border-bottom: 1px solid var(--border);
+    }
+    .log-panel summary::-webkit-details-marker { display: none; }
+    .log-panel summary::before {
+      content: "▸";
+      display: inline-block;
+      margin-right: 0.4rem;
+      transform: translateY(-1px);
+    }
+    .log-panel[open] summary::before { content: "▾"; }
+    .log-panel .log { margin: 0; border: 0; border-radius: 0; }
   </style>
 </head>
 <body>
   <div class="wrap">
-    <h1>Job scrape dashboard</h1>
-    <p class="sub">Reads <code>input/user.csv</code>. Check <strong>at least one</strong>: <strong>all job boards</strong> (Greenhouse, Ashby, Workday, JobSpy for Indeed/Google, …) or <strong>risk ip</strong> (JobSpy only: LinkedIn when checked, else Indeed). <strong>All job boards without risk ip does not run JobSpy for LinkedIn</strong>—check risk ip to add it (alone or together with all boards). <strong>Risk ip does not crawl Notion’s board directly</strong>—it only queries LinkedIn; a row can still link to Ashby/Notion if that is where the employer listed the job on LinkedIn. Experience columns in CSV are not used by the fetcher.</p>
+    <h1>Job Scrape Dashboard</h1>
 
     <div class="grid">
       <div class="card">
@@ -235,6 +275,16 @@
             <input type="checkbox" id="allBoards" />
             <span>all job boards</span>
           </label>
+          <div id="allBoardsExtra" class="all-boards-extra muted" aria-live="polite">
+            <label
+              class="check"
+              style="margin:0;align-items:center;flex-wrap:wrap"
+              title="Each source (each Greenhouse company, RSS board, JobSpy site, …) returns at most this many rows before dedupe. Only used when “all job boards” is checked."
+            >
+              <span style="color:var(--muted);font-size:0.82rem">Max jobs per source</span>
+              <input type="number" id="jobsPerSource" min="1" max="50" value="1" disabled />
+            </label>
+          </div>
           <div class="risk-ip-row">
             <label class="check" style="margin:0" title="Max jobs from JobSpy LinkedIn when risk ip runs it (full run + risk ip uses this cap for LinkedIn only).">
               <input type="number" id="riskIpCount" min="1" max="50" value="3" />
@@ -245,20 +295,21 @@
               <span>risk ip (LinkedIn)</span>
             </label>
           </div>
-          <p class="sub" style="margin:0;font-size:0.8rem">Start scraping stays disabled until at least one option above is checked. Default <strong>3</strong> → up to 3 LinkedIn jobs when risk ip is on. With <strong>only</strong> risk ip, sources are JobSpy (LinkedIn)—not Greenhouse/Ashby crawlers. With <strong>only</strong> all job boards, JobSpy skips LinkedIn.</p>
+          <p class="sub" style="margin:0;font-size:0.8rem">Select at least one mode. Max jobs per source applies to all job boards only.</p>
         </div>
         <div class="row" style="margin-top:0.75rem">
           <button type="button" class="primary" id="btnScrape">Start scraping</button>
           <div class="loader" id="loader"><span class="spinner"></span> Fetching jobs…</div>
         </div>
         <div class="err" id="errMain" hidden></div>
-        <h2 style="margin-top:1rem">Live log</h2>
-        <div class="log" id="logBox"></div>
+        <details class="log-panel">
+          <summary>Live log</summary>
+          <div class="log" id="logBox"></div>
+        </details>
       </div>
 
       <div class="card">
-        <h2>Add user → user.csv</h2>
-        <p class="sub" style="margin:0 0 0.5rem;font-size:0.8rem">Only these fields are read by the scraper (Name, Roles, Skills, Location). Leave <strong>Location</strong> blank to use the default hint <strong>india</strong>. Extra CSV columns are left empty when adding from here.</p>
+        <h2>Add User</h2>
         <div class="add-grid" id="addFields"></div>
         <div class="row" style="margin-top:0.75rem">
           <button type="button" class="secondary" id="btnAddUser">Add user</button>
@@ -272,10 +323,10 @@
       <label class="check" style="margin:0 0 0.65rem; align-items:flex-start;">
         <input type="checkbox" id="indiaOnlyOutput" style="margin-top:0.2rem" />
         <span class="sub" style="margin:0;font-size:0.85rem;line-height:1.45">
-          <strong>India only</strong> — show rows that mention India, an Indian city, or a state/UT (table only; CSV on disk is unchanged).
+          <strong>India only</strong>
         </span>
       </label>
-      <p class="sub" style="margin:0 0 0.75rem">Rows append live after URL de-duplication; CSV is rewritten under <code>output/jobs_&lt;name&gt;.csv</code>. <span id="jobCount" class="job-count"></span></p>
+      <p class="sub" style="margin:0 0 0.45rem"><span id="jobCount" class="job-count"></span></p>
       <p class="source-chips-hint">Sources seen (live)</p>
       <div id="sourceChips" class="source-chips" aria-label="Sources seen in this output"></div>
       <div class="table-wrap">
@@ -292,6 +343,8 @@
 
     const userSel = document.getElementById("userSel");
     const allBoards = document.getElementById("allBoards");
+    const allBoardsExtra = document.getElementById("allBoardsExtra");
+    const jobsPerSource = document.getElementById("jobsPerSource");
     const riskIpCount = document.getElementById("riskIpCount");
     const riskIp = document.getElementById("riskIp");
     const btnScrape = document.getElementById("btnScrape");
@@ -334,7 +387,16 @@
       updateScrapeButton();
     }
 
-    allBoards.addEventListener("change", updateScrapeButton);
+    function syncAllBoardsJobCapUi() {
+      const on = allBoards.checked;
+      if (jobsPerSource) jobsPerSource.disabled = !on;
+      if (allBoardsExtra) allBoardsExtra.classList.toggle("muted", !on);
+    }
+
+    allBoards.addEventListener("change", () => {
+      updateScrapeButton();
+      syncAllBoardsJobCapUi();
+    });
     riskIp.addEventListener("change", updateScrapeButton);
     indiaOnlyOutput.addEventListener("change", () => {
       rerenderTableFromBuffer();
@@ -357,14 +419,9 @@
         return;
       }
       paramsUsed.innerHTML =
-        "<strong>Scraper uses</strong> (this user’s CSV row): " +
-        "<strong>Name</strong> → output filename; " +
-        "<strong>Roles</strong> + <strong>Skills</strong> → keywords; " +
-        "<strong>Location</strong> → location hint (blank → <strong>india</strong>). " +
-        "<br/>Current: <em>Roles</em> " + escapeHtml(u.Roles || "—") +
-        " · <em>Skills</em> " + escapeHtml(u.Skills || "—") +
-        " · <em>Location</em> " +
-        escapeHtml((u.Location || "").trim() || "— (effective: india)");
+        "<strong>Roles</strong> " + escapeHtml(u.Roles || "—") +
+        " · <strong>Skills</strong> " + escapeHtml(u.Skills || "—") +
+        " · <strong>Location</strong> " + escapeHtml((u.Location || "").trim() || "india");
     }
 
     function setTableHeaders(keys) {
@@ -378,12 +435,9 @@
       const shown = tbody.querySelectorAll("tr").length;
       const total = jobRowsBuffer.length;
       const on = indiaOnlyOutput && indiaOnlyOutput.checked;
-      let msg =
-        (on && total
-          ? "Showing " + shown + " of " + total + " loaded row(s) with India-only filter on."
-          : "Showing " + shown + " job row(s).") +
-        " Scroll the table and the live log for full output — nothing is truncated server-side.";
-      jobCount.textContent = msg;
+      jobCount.textContent = on && total
+        ? "Showing " + shown + " of " + total + " rows"
+        : "Showing " + shown + " rows";
     }
 
     function mergeOutputKeys(prevKeys, sampleRow) {
@@ -734,6 +788,10 @@
             50,
             Math.max(1, parseInt(String(riskIpCount.value), 10) || 3)
           ),
+          jobs_per_source: Math.min(
+            50,
+            Math.max(1, parseInt(String(jobsPerSource.value), 10) || 1)
+          ),
         }),
       });
       const j = await r.json().catch(() => ({}));
@@ -761,7 +819,11 @@
         }
         if (data.event === "started") {
           const n = data.source_count ?? "?";
-          logBox.textContent += `Started (${n} sources)…\n`;
+          const cap = data.jobs_per_source;
+          logBox.textContent +=
+            data.all_job_boards && cap != null
+              ? `Started (${n} sources, up to ${cap} job(s) per source)…\n`
+              : `Started (${n} sources)…\n`;
           logBox.scrollTop = logBox.scrollHeight;
         }
         if (data.event === "log") {
@@ -823,6 +885,7 @@
 
     loadUsers().then(() => {
       void loadJobsForSelection({ clearLog: true });
+      syncAllBoardsJobCapUi();
       updateScrapeButton();
     });
   </script>

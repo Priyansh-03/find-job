@@ -68,10 +68,31 @@ def filter_jobs(
     salary_max: int | None = None,
     full_time_only: bool = True,
     since_days: int = 0,
+    since_hours: float = 0.0,
 ) -> list[dict]:
     """Filter jobs by keywords, location, and employment type."""
     if not jobs:
         return []
+
+    def job_dt_utc(job: dict) -> datetime | None:
+        """
+        RemoteOK jobs include either:
+        - `epoch` (unix seconds) or
+        - `date` (ISO timestamp)
+        """
+        epoch = job.get("epoch")
+        if epoch is not None:
+            try:
+                return datetime.fromtimestamp(float(epoch), tz=timezone.utc)
+            except (TypeError, ValueError, OSError):
+                pass
+        date_str = job.get("date") or ""
+        if not date_str:
+            return None
+        try:
+            return datetime.fromisoformat(str(date_str).replace("Z", "+00:00")).astimezone(timezone.utc)
+        except (ValueError, TypeError):
+            return None
 
     def get_text(job: dict) -> str:
         """Get searchable text from a job."""
@@ -137,15 +158,20 @@ def filter_jobs(
             # (many remote jobs don't specify, we include them)
 
         # Date filter
-        if since_days:
-            try:
-                date_str = job.get("date", "")
-                dt = datetime.fromisoformat(date_str.replace("Z", "+00:00"))
-                cutoff = datetime.now(timezone.utc) - timedelta(days=since_days)
-                if dt.replace(tzinfo=timezone.utc) < cutoff:
+        # Always filter using the job's own `epoch`/`date` field (client-side),
+        # not relying on any RemoteOK API query params.
+        if since_hours and since_hours > 0:
+            dt = job_dt_utc(job)
+            if dt is not None:
+                cutoff = datetime.now(timezone.utc) - timedelta(hours=float(since_hours))
+                if dt < cutoff:
                     continue
-            except (ValueError, TypeError):
-                pass
+        elif since_days:
+            dt = job_dt_utc(job)
+            if dt is not None:
+                cutoff = datetime.now(timezone.utc) - timedelta(days=int(since_days))
+                if dt < cutoff:
+                    continue
 
         filtered.append(job)
 
@@ -215,6 +241,12 @@ def main():
     ap.add_argument("--salary-max", type=int, help="Max salary (e.g. 200000)")
     ap.add_argument("--no-full-time", action="store_true", help="Include part-time/contract")
     ap.add_argument("--since", type=int, default=30, help="Only jobs from last N days (0=all)")
+    ap.add_argument(
+        "--since-hours",
+        type=float,
+        default=0.0,
+        help="Only jobs from last N hours (0=disabled). Overrides --since days when > 0.",
+    )
     ap.add_argument("--limit", type=int, default=50, help="Max jobs to output (0=unlimited)")
     ap.add_argument("--out", default="jobs.csv", help="Output CSV file")
     ap.add_argument("--no-csv", action="store_true", help="Only print to console, no CSV")
@@ -240,6 +272,7 @@ def main():
         salary_max=args.salary_max,
         full_time_only=not args.no_full_time,
         since_days=args.since if args.since else 0,
+        since_hours=args.since_hours if args.since_hours else 0.0,
     )
     print(f"  Filtered to {len(filtered)} matching jobs")
 

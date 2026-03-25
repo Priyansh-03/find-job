@@ -2,9 +2,20 @@
 """Fetch jobs from Himalayas. https://himalayas.app/jobs/api - verified working."""
 import argparse
 import csv
+import re
 import requests
 
 API_URL = "https://himalayas.app/jobs/api"
+
+
+def _keyword_matches_blob(kw: str, blob: str) -> bool:
+    """Avoid false positives (e.g. ``ai`` matching inside unrelated words)."""
+    k = (kw or "").strip().lower()
+    if not k:
+        return False
+    if " " in k:
+        return k in blob
+    return re.search(r"(?<![a-z0-9])" + re.escape(k) + r"(?![a-z0-9])", blob) is not None
 
 
 def fetch_jobs(q: str = "engineer", limit: int = 100) -> list[dict]:
@@ -90,7 +101,17 @@ def main():
         j.pop("_epoch", None)
     print(f"Himalayas: {len(jobs)} jobs")
     if args.keywords:
-        jobs = [j for j in jobs if any(kw.lower() in (j["title"] + j.get("company", "") + j.get("category", "")).lower() for kw in args.keywords)]
+        def job_matches_keywords(j: dict) -> bool:
+            blob = (
+                (j.get("title") or "")
+                + " "
+                + (j.get("company") or "")
+                + " "
+                + (j.get("category") or "")
+            ).lower()
+            return any(_keyword_matches_blob(kw, blob) for kw in args.keywords)
+
+        jobs = [j for j in jobs if job_matches_keywords(j)]
     if args.limit > 0:
         jobs = jobs[: args.limit]
     for i, j in enumerate(jobs[:20], 1):

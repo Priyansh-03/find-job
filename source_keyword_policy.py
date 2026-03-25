@@ -52,14 +52,18 @@ def adapt_keywords_for_source(source: str, raw: list[str]) -> KeywordAdapt:
         )
         return KeywordAdapt(keywords=chosen, search_phrase=None, log_line=msg)
 
-    # --- Single query string (Himalayas --query) ---
+    # --- Himalayas: one API --query phrase + OR post-filter --keywords on title/company/category ---
     if source == "himalayas":
         phrase = " ".join(kw[:2]) if len(kw) >= 2 else kw[0]
-        dropped = kw[2:] if len(kw) > 2 else []
-        msg = f"Himalayas --query is one phrase; using {phrase!r}."
+        post = kw[:5]
+        dropped = kw[5:]
+        msg = (
+            f"Himalayas API --query {phrase!r}; rows must match at least one of "
+            f"{len(post)} keyword(s) in title/company/category."
+        )
         if dropped:
-            msg += " " + _fmt_dropped([phrase], dropped)
-        return KeywordAdapt(keywords=[phrase], search_phrase=phrase, log_line=msg)
+            msg += " " + _fmt_dropped(post, dropped)
+        return KeywordAdapt(keywords=post, search_phrase=phrase, log_line=msg)
 
     # --- JobSpy: one search string + optional post-filter keywords ---
     if source.startswith("jobspy-"):

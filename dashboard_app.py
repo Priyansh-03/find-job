@@ -73,6 +73,15 @@ def _clamp_risk_per_site(n: object) -> int:
     return max(1, min(v, 50))
 
 
+def _clamp_jobs_per_source(n: object) -> int:
+    """Cap per-board rows for full multi-source runs (same range as CLI ``--jobs-per-source``)."""
+    try:
+        v = int(n)
+    except (TypeError, ValueError):
+        return 1
+    return max(1, min(v, 50))
+
+
 def _dashboard_opts(*, risk_ip: bool, risk_per_site: int) -> FetchOpts:
     n = _clamp_risk_per_site(risk_per_site)
     return FetchOpts(
@@ -100,10 +109,13 @@ def _dashboard_opts(*, risk_ip: bool, risk_per_site: int) -> FetchOpts:
     )
 
 
-def _full_run_opts(*, include_linkedin: bool, risk_per_site: int) -> FetchOpts:
+def _full_run_opts(
+    *, include_linkedin: bool, risk_per_site: int, jobs_per_source: int
+) -> FetchOpts:
     """All boards + JobSpy. LinkedIn JobSpy only when ``include_linkedin`` (dashboard: risk ip checked)."""
     sites = jobspy_sites_full_pipeline(include_risky_jobspy=include_linkedin)
     n = _clamp_risk_per_site(risk_per_site)
+    jps = _clamp_jobs_per_source(jobs_per_source)
     return FetchOpts(
         ignore_title_words=[],
         user_lat=None,
@@ -119,7 +131,7 @@ def _full_run_opts(*, include_linkedin: bool, risk_per_site: int) -> FetchOpts:
         jobvite=True,
         smartrecruiters=True,
         greenhouse_lever_india_only=False,
-        jobs_per_source=1,
+        jobs_per_source=jps,
         location_preference="",
         location_fallback=True,
         netflix_location="",
@@ -253,6 +265,7 @@ def api_scrape_start():
         risk_ip = bool(body.get("risk_ip"))
         all_job_boards = bool(body.get("all_job_boards"))
         risk_per_site = _clamp_risk_per_site(body.get("risk_jobspy_per_site", 3))
+        jobs_per_source = _clamp_jobs_per_source(body.get("jobs_per_source", 1))
         if not risk_ip and not all_job_boards:
             _scrape_lock.release()
             return jsonify(
@@ -274,6 +287,7 @@ def api_scrape_start():
                 opts = _full_run_opts(
                     include_linkedin=risk_ip,
                     risk_per_site=risk_per_site,
+                    jobs_per_source=jobs_per_source,
                 )
                 configs_ov: list[tuple[str, str]] | None = None
                 eta = 10
@@ -306,6 +320,7 @@ def api_scrape_start():
                         "risk_ip": risk_ip,
                         "all_job_boards": all_job_boards,
                         "risk_jobspy_per_site": risk_per_site,
+                        "jobs_per_source": jobs_per_source if all_job_boards else None,
                         "source_count": len(preview),
                         "sources": [c[0] for c in preview[:40]],
                     }

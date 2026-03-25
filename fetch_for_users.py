@@ -878,7 +878,7 @@ def _build_args(
             cmd = kw_args + ["--api-location", "india", "--location"] + remoteok_locs + base
         return cmd
     if name == "himalayas":
-        return ["--query", search_one, "--location", himalayas_loc] + base
+        return ["--query", search_one, "--location", himalayas_loc] + base + kw_args
     if name == "jobicy":
         jc = str(max(30, min(opts.page_size, 100))) if opts.page_size > 0 else "50"
         cmd = (["--geo", jobicy_geo] if jobicy_geo else []) + ["--keywords"] + kw + ["--count", jc] + base
