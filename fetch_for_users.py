@@ -44,7 +44,7 @@ from location_filter import (
 )
 
 SCRIPT_DIR = PROJECT_ROOT
-VENV_PY = SCRIPT_DIR / ".venv" / "bin" / "python"
+VENV_PY = Path(sys.executable)
 LOC_JSON = DATA_DIR / "latitude_longitude.json"
 
 JOBSPY_SITE_CHOICES = frozenset(

@@ -40,14 +40,24 @@ def fetch_all_jobs(*, api_params: dict[str, str] | None = None) -> list[dict]:
         q = urlencode(api_params)
         if q:
             url = f"{API_URL}?{q}"
-    r = requests.get(url, headers={"User-Agent": USER_AGENT}, timeout=30)
-    r.raise_for_status()
+    try:
+        r = requests.get(url, headers={"User-Agent": USER_AGENT}, timeout=30)
+        r.raise_for_status()
+    except requests.exceptions.HTTPError as e:
+        print(f"ERROR: Remote OK API returned {r.status_code}")
+        if r.status_code == 403:
+            print("  (Likely blocked by Cloudflare or Render IP restriction)")
+        sys.exit(1)
+    except Exception as e:
+        print(f"ERROR: {e}")
+        sys.exit(1)
+
     text = (r.text or "").lstrip()
     if text and not text.startswith("["):
-        raise ValueError(
-            "Remote OK API returned non-JSON (blocked or wrong URL); "
-            "try without query params or a browser-like User-Agent."
-        )
+        print(f"ERROR: Remote OK API returned non-JSON (Length: {len(text)})")
+        if "cloudflare" in text.lower():
+            print("  (Blocked by Cloudflare challenge page)")
+        sys.exit(1)
     data = r.json()
 
     # First element is API metadata; jobs follow
