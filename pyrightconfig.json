@@ -1,4 +1,10 @@
 {
+  "include": ["."],
   "venvPath": ".",
-  "venv": ".venv"
+  "venv": ".venv",
+  "executionEnvironments": [
+    {
+      "root": "."
+    }
+  ]
 }

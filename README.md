@@ -57,12 +57,22 @@ Open:
 - Jobs are written to: `output/jobs_<Name>.csv`
 - The dashboard reloads from that CSV when scraping finishes.
 
+## Deploy / production
+
+Simple start command (works on local and Render):
+
+```bash
+python dashboard_app.py
+```
+
+`dashboard_app.py` auto-uses `PORT` when present (e.g. Render), otherwise defaults to `127.0.0.1:5050`.
+
 ## Production (Gunicorn)
 
 Gunicorn start command (Flask WSGI):
 
 ```bash
-gunicorn dashboard_app:app -b 0.0.0.0:8000 -w 1
+gunicorn dashboard_app:app -b 0.0.0.0:$PORT -w 1
 ```
 
 ## Notes

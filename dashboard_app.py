@@ -5,6 +5,7 @@ from __future__ import annotations
 import csv
 import json
 import math
+import os
 import threading
 import uuid
 from http import HTTPStatus
@@ -396,7 +397,14 @@ def api_stream(token: str):
 
 
 def main() -> None:
-    app.run(host="127.0.0.1", port=5050, debug=False, threaded=True)
+    # Render/PAAS: honor PORT and bind publicly; local default stays 127.0.0.1:5050.
+    port_raw = (os.getenv("PORT") or "").strip()
+    host = "0.0.0.0" if port_raw else "127.0.0.1"
+    try:
+        port = int(port_raw) if port_raw else 5050
+    except ValueError:
+        port = 5050
+    app.run(host=host, port=port, debug=False, threaded=True)
 
 
 if __name__ == "__main__":
