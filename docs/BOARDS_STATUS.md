@@ -1,5 +1,7 @@
 # 140 Job Boards – Status
 
+See `docs/README.md` for the full documentation map.
+
 Explored APIs/RSS for boards from your list. Many require auth, return 403, or have no public endpoint.
 
 ---

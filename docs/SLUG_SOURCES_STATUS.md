@@ -1,5 +1,7 @@
 # Job sources & slug probe status
 
+See `docs/README.md` for the full documentation map.
+
 Live HTTP probe of Greenhouse / Lever / Ashby boards (HTTP 200 on public job-board endpoints), plus an inventory of **every** fetch path `fetch_for_users.py` can use.
 
 **Last probe:** 2026-03-24 (regenerate with `.venv/bin/python tests/probe_board_slugs.py`).

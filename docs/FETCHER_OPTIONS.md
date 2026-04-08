@@ -1,5 +1,7 @@
 # Fetcher Options & Filters
 
+See `docs/README.md` for the full documentation map.
+
 All working fetchers, their CLI options, and safe usage. **JobSpy** `linkedin` is **supported** but **tier C** (IP block / rate limit): run **last** via `fetch_for_users.py`; prefer `indeed` for routine runs. **Naukri** is not wired in this project (API often blocks with reCAPTCHA).
 
 ## Quick reference

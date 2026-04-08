@@ -1,82 +1,44 @@
 # Job Scrape Dashboard
 
-This repo scrapes job listings from multiple sources and lets you review results in a simple local web UI (Flask + SSE).
+Multi-source job scraping dashboard with Flask + SSE, India-first filtering defaults, and per-user CSV outputs.
 
-## What’s included
+## Start here
 
-- `fetch_for_users.py`: Orchestrates fetching from many job sources based on `input/user.csv`
-- `dashboard_app.py`: Flask dashboard (start scrape, live log, jobs table)
-- `dashboard/templates/index.html`: UI (light mode), source chips, and table filters
-- `sources/*`: Individual fetchers (API/RSS-based where possible)
+- **Docs hub:** `docs/README.md`
+- **Local run:** `./run.sh`
+- **Production WSGI:** `app/wsgi.py`
 
-## Local setup
+## Repo layout
 
-### 1) Install dependencies
-
-```bash
-python3 -m venv .venv
-.venv/bin/python -m pip install --upgrade pip
-.venv/bin/python -m pip install -r requirements.txt
+```text
+.
+├── app/                         # Production app entrypoints
+├── dashboard/                   # UI templates
+├── docs/                        # Project documentation
+├── input/                       # Input CSV templates
+├── job_boards/                  # Board slug/config files
+├── sources/                     # Individual source fetchers
+├── tests/                       # Probes, smoke scripts, test helpers
+├── dashboard_app.py             # Flask dashboard app
+├── fetch_for_users.py           # Main orchestration pipeline
+├── requirements.txt
+└── run.sh                       # Canonical local runner
 ```
 
-### 2) Prepare input CSV
-
-Create `input/user.csv` from the template:
+## Quick commands
 
 ```bash
-cp input/user.example.csv input/user.csv
+# local
+./run.sh
+
+# production
+gunicorn app.wsgi:app -b 0.0.0.0:$PORT -w 1
 ```
 
-Edit `input/user.csv`:
+## Recency behavior
 
-- `Name`: used for output filename (`output/jobs_<Name>.csv`)
-- `Roles` + `Skills`: keywords used to search (e.g. `ai, nlp, rag`)
-- `Location`: location hint (blank defaults to India behavior)
-
-## Run locally (dashboard)
-
-```bash
-.venv/bin/python dashboard_app.py
-```
-
-Open:
-
-- http://127.0.0.1:5050
-
-## Run a scrape
-
-1. Select a user from the dropdown
-2. Choose one or both modes:
-   - **all job boards**: multi-source scrape
-   - **risk ip**: JobSpy only (LinkedIn when enabled)
-3. Click **Start scraping**
-4. Watch the table fill in live and check the live log panel
-
-## Outputs
-
-- Jobs are written to: `output/jobs_<Name>.csv`
-- The dashboard reloads from that CSV when scraping finishes.
-
-## Deploy / production
-
-Simple start command (works on local and Render):
-
-```bash
-python dashboard_app.py
-```
-
-`dashboard_app.py` auto-uses `PORT` when present (e.g. Render), otherwise defaults to `127.0.0.1:5050`.
-
-## Production (Gunicorn)
-
-Gunicorn start command (Flask WSGI):
-
-```bash
-gunicorn dashboard_app:app -b 0.0.0.0:$PORT -w 1
-```
-
-## Notes
-
-- Some sources may provide an apply URL that redirects to an external ATS (the UI shows the discovery source and stores the final link).
-- The dashboard includes an **India only** table filter (does not modify the CSV written on disk).
+- Dashboard `last hours` (default `24`) is applied per source.
+- If a source returns no jobs in the requested window, fallback automatically expands for that source:
+  - requested window -> `7d` -> `all-time`
+- This keeps 24h preference while avoiding empty results from sources with sparse/old/undated postings.
 

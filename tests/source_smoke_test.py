@@ -114,6 +114,7 @@ def _make_opts(
         netflix_sort_by="",
         netflix_teams=[],
         netflix_work_types=[],
+        since_hours=0.0,
     )
 
 

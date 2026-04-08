@@ -11,9 +11,9 @@ import re
 import subprocess
 import sys
 import time
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from urllib.parse import unquote, urlparse
-from datetime import datetime
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any, Callable, Literal
 
@@ -171,6 +171,7 @@ class FetchOpts:
     netflix_sort_by: str
     netflix_teams: list[str]
     netflix_work_types: list[str]
+    since_hours: float
 
 
 def _first_location_token(csv_location: str) -> str:
@@ -507,6 +508,15 @@ def normalize_job(row: dict, source: str) -> dict:
         "source": _merge_source_with_listing_url(source, link),
         # Always set so dashboard column order matches (avoid shifting source into location).
         "location": loc,
+        "published": str(
+            row.get("published")
+            or row.get("date")
+            or row.get("created_at")
+            or row.get("created")
+            or row.get("posted")
+            or row.get("epoch")
+            or ""
+        ).strip(),
     }
     return out
 
@@ -613,7 +623,7 @@ def _progress_delta_after_filters(
     opts: FetchOpts,
     state: dict[str, Any],
 ) -> tuple[list[dict], list[dict]]:
-    """Apply title/geo/dedupe like the final pass; return (new rows since last call, full list)."""
+    """Apply title/geo/dedupe like final pass; return (delta, full list)."""
     tmp = _apply_title_ignore(list(all_jobs), opts.ignore_title_words)
     tmp = _apply_geo_filter(tmp, opts.user_lat, opts.user_lng, opts.radius_miles, LOC_JSON)
     tmp = _dedupe_jobs_by_link(tmp)
@@ -651,6 +661,7 @@ def fetch_all_for_user(
     sources_runnable = 0
     sources_missing_script = 0
     sources_delivered_pre_filters = 0
+    recency_stage_hits: dict[str, int] = {"strict": 0, "7d": 0, "all": 0}
 
     keyword_sets = [
         ("primary (roles+skills)", primary),
@@ -675,85 +686,105 @@ def fetch_all_for_user(
             per_source_cap = max(1, min(max(1, opts.risk_jobspy_per_site), 50))
         added = 0
         seen_this_source: set[str] = set()
-        for label, kw_set in keyword_sets:
-            if added >= per_source_cap:
-                break
-            adap = adapt_keywords_for_source(name, kw_set)
-            if adap.log_line and label == "primary (roles+skills)":
-                emit(f"    [kw] {name}: {adap.log_line}")
-            args = _build_args(
-                name,
-                adap,
-                per_source_cap,
-                opts,
-                user_location_hint=user_location_hint,
-                arg_variant="prefer",
-            )
-            to = 90 if name.startswith("workday-") or name.endswith("-ats") else 55
-            n, jobs, diag = _run_fetcher(name, script, args, timeout=to, emit=emit)
-            if diag:
-                failures.append(diag)
-                if diag.get("kind") in ("exit_error", "no_csv", "timeout", "exception"):
-                    break
-            jobs = _apply_orch_location_text_filter(
-                name, jobs, user_location_hint, apply_filter=True
-            )
-            added_before = added
-            for j in jobs:
-                link = (j.get("link") or "").strip()
-                if link and link not in seen_this_source:
-                    seen_this_source.add(link)
-                    all_jobs.append(j)
-                    added += 1
-                    if added >= per_source_cap:
-                        break
-            if added > added_before:
-                gained = added - added_before
-                if label != "primary (roles+skills)":
-                    emit(f"    [OK] {name}: {gained} job(s) (via {label})")
-                else:
-                    emit(f"    [OK] {name}: {gained} job(s)")
-            if added >= per_source_cap:
-                break
+        recency_stages: list[tuple[str, float]] = [("all", 0.0)]
+        if opts.since_hours > 0:
+            recency_stages = [("strict", float(opts.since_hours)), ("7d", 168.0), ("all", 0.0)]
 
-        if added == 0 and opts.location_fallback:
-            fb_adap = adapt_keywords_for_source(name, primary)
-            if fb_adap.log_line:
-                emit(f"    [kw] {name} (fallback): {fb_adap.log_line}")
-            args = _build_args(
-                name,
-                fb_adap,
-                per_source_cap,
-                opts,
-                user_location_hint=user_location_hint,
-                arg_variant="fallback",
-            )
-            to = 90 if name.startswith("workday-") or name.endswith("-ats") else 55
-            n, jobs, diag = _run_fetcher(name, script, args, timeout=to, emit=emit)
-            if diag:
-                failures.append(diag)
-            jobs = _apply_orch_location_text_filter(
-                name, jobs, user_location_hint, apply_filter=False
-            )
-            for j in jobs:
-                link = (j.get("link") or "").strip()
-                if link and link not in seen_this_source:
-                    seen_this_source.add(link)
-                    all_jobs.append(j)
-                    added += 1
-                    if added >= per_source_cap:
-                        break
+        stage_used = "all"
+        for sidx, (stage_name, stage_hours) in enumerate(recency_stages):
             if added > 0:
-                emit(f"    [OK] {name}: fallback pass, {min(added, per_source_cap)} job(s)")
+                break
+            stage_opts = replace(opts, since_hours=stage_hours)
+            if sidx > 0:
+                label = "7 days" if stage_name == "7d" else "all-time"
+                emit(f"    [recency-fallback] {name}: no jobs in tighter window, retrying {label}")
+
+            for label, kw_set in keyword_sets:
+                if added >= per_source_cap:
+                    break
+                adap = adapt_keywords_for_source(name, kw_set)
+                if adap.log_line and label == "primary (roles+skills)":
+                    emit(f"    [kw] {name}: {adap.log_line}")
+                args = _build_args(
+                    name,
+                    adap,
+                    per_source_cap,
+                    stage_opts,
+                    user_location_hint=user_location_hint,
+                    arg_variant="prefer",
+                )
+                to = 90 if name.startswith("workday-") or name.endswith("-ats") else 55
+                _n, jobs, diag = _run_fetcher(name, script, args, timeout=to, emit=emit)
+                if diag:
+                    failures.append(diag)
+                    if diag.get("kind") in ("exit_error", "no_csv", "timeout", "exception"):
+                        break
+                jobs = _apply_orch_location_text_filter(
+                    name, jobs, user_location_hint, apply_filter=True
+                )
+                added_before = added
+                for j in jobs:
+                    link = (j.get("link") or "").strip()
+                    if link and link not in seen_this_source:
+                        seen_this_source.add(link)
+                        all_jobs.append(j)
+                        added += 1
+                        if added >= per_source_cap:
+                            break
+                if added > added_before:
+                    gained = added - added_before
+                    suffix = f" [{stage_name}]" if stage_name != "strict" else ""
+                    if label != "primary (roles+skills)":
+                        emit(f"    [OK] {name}: {gained} job(s) (via {label}){suffix}")
+                    else:
+                        emit(f"    [OK] {name}: {gained} job(s){suffix}")
+                if added >= per_source_cap:
+                    break
+
+            if added == 0 and opts.location_fallback:
+                fb_adap = adapt_keywords_for_source(name, primary)
+                if fb_adap.log_line:
+                    emit(f"    [kw] {name} (fallback): {fb_adap.log_line}")
+                args = _build_args(
+                    name,
+                    fb_adap,
+                    per_source_cap,
+                    stage_opts,
+                    user_location_hint=user_location_hint,
+                    arg_variant="fallback",
+                )
+                to = 90 if name.startswith("workday-") or name.endswith("-ats") else 55
+                _n, jobs, diag = _run_fetcher(name, script, args, timeout=to, emit=emit)
+                if diag:
+                    failures.append(diag)
+                jobs = _apply_orch_location_text_filter(
+                    name, jobs, user_location_hint, apply_filter=False
+                )
+                for j in jobs:
+                    link = (j.get("link") or "").strip()
+                    if link and link not in seen_this_source:
+                        seen_this_source.add(link)
+                        all_jobs.append(j)
+                        added += 1
+                        if added >= per_source_cap:
+                            break
+                if added > 0:
+                    suffix = f" [{stage_name}]" if stage_name != "strict" else ""
+                    emit(f"    [OK] {name}: fallback pass, {min(added, per_source_cap)} job(s){suffix}")
+            if added > 0:
+                stage_used = stage_name
+                break
 
         if added == 0:
             emit(
                 f"    [0] {name}: no jobs (tried all keyword sets"
                 + (", fallback" if opts.location_fallback else "")
+                + (", recency fallback" if opts.since_hours > 0 else "")
                 + ")"
             )
         else:
             sources_delivered_pre_filters += 1
+            recency_stage_hits[stage_used] = recency_stage_hits.get(stage_used, 0) + 1
 
         if progress_emit is not None:
             delta, full = _progress_delta_after_filters(all_jobs, opts, prog_state)
@@ -799,6 +830,9 @@ def fetch_all_for_user(
         "dropped_title_filter": rows_after_collection - rows_after_title,
         "dropped_geo_filter": rows_after_title - rows_after_geo,
         "duplicate_urls_merged": duplicate_urls_merged,
+        "recency_stage_strict_sources": recency_stage_hits.get("strict", 0),
+        "recency_stage_7d_sources": recency_stage_hits.get("7d", 0),
+        "recency_stage_all_sources": recency_stage_hits.get("all", 0),
         "final_rows": len(all_jobs),
         "wall_seconds": time.perf_counter() - user_wall0,
     }
@@ -814,6 +848,7 @@ def _build_args(
     user_location_hint: str,
     arg_variant: Literal["prefer", "fallback"],
 ) -> list[str]:
+    since_days = max(1, math.ceil(float(opts.since_hours) / 24.0)) if opts.since_hours > 0 else 0
     kw = list(adap.keywords)
     if not kw and name != "landingjobs":
         kw = ["manager", "remote"]
@@ -876,32 +911,47 @@ def _build_args(
         cmd = kw_args + ["--location"] + remoteok_locs + base
         if india_focus:
             cmd = kw_args + ["--api-location", "india", "--location"] + remoteok_locs + base
+        if opts.since_hours > 0:
+            cmd += ["--since-hours", str(opts.since_hours), "--since", "0"]
         return cmd
     if name == "himalayas":
-        return ["--query", search_one, "--location", himalayas_loc] + base + kw_args
+        cmd = ["--query", search_one, "--location", himalayas_loc] + base + kw_args
+        if since_days:
+            cmd += ["--since", str(since_days)]
+        return cmd
     if name == "jobicy":
         jc = str(max(30, min(opts.page_size, 100))) if opts.page_size > 0 else "50"
         cmd = (["--geo", jobicy_geo] if jobicy_geo else []) + ["--keywords"] + kw + ["--count", jc] + base
+        if since_days:
+            cmd += ["--since", str(since_days)]
         return cmd
     if name == "arbeitnow":
         cmd = base + kw_args
         if arbeitnow_loc:
             cmd = ["--location", arbeitnow_loc] + cmd
+        if since_days:
+            cmd += ["--since", str(since_days)]
         return cmd
     if name == "dayweek4":
         cmd = base + kw_args
         if dayweek_loc:
             cmd = ["--location", dayweek_loc] + cmd
+        if since_days:
+            cmd += ["--since", str(since_days)]
         return cmd
     if name == "themuse":
         cmd = base + kw_args
         if themuse_loc:
             cmd = ["--location", themuse_loc] + cmd
+        if since_days:
+            cmd += ["--since", str(since_days)]
         return cmd
     if name == "workingnomads":
         cmd = base + kw_args
         if workingnomads_loc:
             cmd = ["--location", workingnomads_loc] + cmd
+        if since_days:
+            cmd += ["--since", str(since_days)]
         return cmd
     if name == "authenticjobs":
         cmd = list(base + kw_args)
@@ -949,7 +999,7 @@ def _build_args(
             search_one,
             "--results",
             str(res),
-        ] + base + jkw
+        ] + (["--hours", str(max(1, math.ceil(float(opts.since_hours))))] if opts.since_hours > 0 else []) + base + jkw
     if name.startswith("greenhouse-"):
         company = name.replace("greenhouse-", "")
         extra = []
@@ -1190,6 +1240,52 @@ def _apply_title_ignore(jobs: list[dict], words: list[str]) -> list[dict]:
     return out
 
 
+def _parse_published_utc(v: object) -> datetime | None:
+    if v is None:
+        return None
+    s = str(v).strip()
+    if not s:
+        return None
+    if re.fullmatch(r"\d{10,13}", s):
+        try:
+            raw = float(s)
+            if len(s) >= 13:
+                raw /= 1000.0
+            return datetime.fromtimestamp(raw, tz=timezone.utc)
+        except (ValueError, OSError):
+            return None
+    try:
+        dt = datetime.fromisoformat(s.replace("Z", "+00:00"))
+        if dt.tzinfo is None:
+            dt = dt.replace(tzinfo=timezone.utc)
+        return dt.astimezone(timezone.utc)
+    except ValueError:
+        return None
+
+
+def _published_from_row(row: dict[str, Any]) -> datetime | None:
+    for k in ("published", "date", "created_at", "created", "posted", "epoch"):
+        if k in row:
+            dt = _parse_published_utc(row.get(k))
+            if dt is not None:
+                return dt
+    return None
+
+
+def _apply_recency_filter(jobs: list[dict], since_hours: float) -> list[dict]:
+    if since_hours <= 0:
+        return jobs
+    cutoff = datetime.now(timezone.utc) - timedelta(hours=float(since_hours))
+    out: list[dict] = []
+    for j in jobs:
+        dt = _published_from_row(j)
+        if dt is not None and dt >= cutoff:
+            out.append(j)
+    # Fallback behavior: if no rows matched the recency window, keep original rows.
+    # This avoids blank output when sources lack fresh or parseable timestamps.
+    return out if out else jobs
+
+
 def _print_failure_report(failures: list[dict[str, Any]], emit: Callable[[str], None] = print) -> None:
     if not failures:
         return
@@ -1219,6 +1315,9 @@ def _print_run_stats_block(title: str, s: dict[str, Any], emit: Callable[[str], 
     emit(f"  Rows collected (all sources, before filters): {s['rows_after_collection']}")
     emit(f"  Dropped by title filter: {s['dropped_title_filter']}")
     emit(f"  Dropped by geo filter: {s['dropped_geo_filter']}")
+    emit(f"  Sources resolved at strict window: {s.get('recency_stage_strict_sources', 0)}")
+    emit(f"  Sources expanded to 7 days: {s.get('recency_stage_7d_sources', 0)}")
+    emit(f"  Sources expanded to all-time: {s.get('recency_stage_all_sources', 0)}")
     emit(f"  Duplicate URLs merged (same link): {s['duplicate_urls_merged']}")
     emit(f"  Final unique jobs in CSV: {s['final_rows']}")
     emit(f"  Wall time this user: {_fmt_dur(s.get('wall_seconds', 0))}")
@@ -1358,6 +1457,12 @@ def main() -> None:
         metavar="N",
         help="While fetching each user, print ETA every N sources (0 = disable)",
     )
+    ap.add_argument(
+        "--since-hours",
+        type=float,
+        default=0.0,
+        help="Keep jobs from last N hours across all sources (0 disables; 24 = last day).",
+    )
     args = ap.parse_args()
 
     if args.all_sources:
@@ -1398,6 +1503,7 @@ def main() -> None:
         netflix_sort_by=args.netflix_sort_by or "",
         netflix_teams=list(args.netflix_teams or []),
         netflix_work_types=list(args.netflix_work_types or []),
+        since_hours=max(0.0, float(args.since_hours or 0.0)),
     )
 
     OUTPUT_DIR.mkdir(parents=True, exist_ok=True)

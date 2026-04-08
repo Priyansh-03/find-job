@@ -286,6 +286,10 @@
             </label>
           </div>
           <div class="risk-ip-row">
+            <label class="check" style="margin:0" title="Global recency window applied across sources. 24 = last 24 hours. 0 disables.">
+              <input type="number" id="sinceHours" min="0" max="336" step="1" value="24" />
+              <span>last hours</span>
+            </label>
             <label class="check" style="margin:0" title="Max jobs from JobSpy LinkedIn when risk ip runs it (full run + risk ip uses this cap for LinkedIn only).">
               <input type="number" id="riskIpCount" min="1" max="50" value="3" />
               <span>max jobs</span>
@@ -345,6 +349,7 @@
     const allBoards = document.getElementById("allBoards");
     const allBoardsExtra = document.getElementById("allBoardsExtra");
     const jobsPerSource = document.getElementById("jobsPerSource");
+    const sinceHours = document.getElementById("sinceHours");
     const riskIpCount = document.getElementById("riskIpCount");
     const riskIp = document.getElementById("riskIp");
     const btnScrape = document.getElementById("btnScrape");
@@ -792,6 +797,10 @@
             50,
             Math.max(1, parseInt(String(jobsPerSource.value), 10) || 1)
           ),
+          since_hours: Math.min(
+            336,
+            Math.max(0, parseFloat(String(sinceHours.value)) || 0)
+          ),
         }),
       });
       const j = await r.json().catch(() => ({}));
@@ -820,10 +829,11 @@
         if (data.event === "started") {
           const n = data.source_count ?? "?";
           const cap = data.jobs_per_source;
+          const sh = data.since_hours;
           logBox.textContent +=
             data.all_job_boards && cap != null
-              ? `Started (${n} sources, up to ${cap} job(s) per source)…\n`
-              : `Started (${n} sources)…\n`;
+              ? `Started (${n} sources, up to ${cap} job(s) per source${sh ? `, last ${sh}h with fallback` : ""})…\n`
+              : `Started (${n} sources${sh ? `, last ${sh}h with fallback` : ""})…\n`;
           logBox.scrollTop = logBox.scrollHeight;
         }
         if (data.event === "log") {

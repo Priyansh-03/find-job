@@ -83,7 +83,15 @@ def _clamp_jobs_per_source(n: object) -> int:
     return max(1, min(v, 50))
 
 
-def _dashboard_opts(*, risk_ip: bool, risk_per_site: int) -> FetchOpts:
+def _clamp_since_hours(n: object) -> float:
+    try:
+        v = float(n)
+    except (TypeError, ValueError):
+        return 0.0
+    return max(0.0, min(v, 24.0 * 14.0))
+
+
+def _dashboard_opts(*, risk_ip: bool, risk_per_site: int, since_hours: float) -> FetchOpts:
     n = _clamp_risk_per_site(risk_per_site)
     return FetchOpts(
         ignore_title_words=[],
@@ -107,11 +115,12 @@ def _dashboard_opts(*, risk_ip: bool, risk_per_site: int) -> FetchOpts:
         netflix_sort_by="",
         netflix_teams=[],
         netflix_work_types=[],
+        since_hours=max(0.0, since_hours),
     )
 
 
 def _full_run_opts(
-    *, include_linkedin: bool, risk_per_site: int, jobs_per_source: int
+    *, include_linkedin: bool, risk_per_site: int, jobs_per_source: int, since_hours: float
 ) -> FetchOpts:
     """All boards + JobSpy. LinkedIn JobSpy only when ``include_linkedin`` (dashboard: risk ip checked)."""
     sites = jobspy_sites_full_pipeline(include_risky_jobspy=include_linkedin)
@@ -139,6 +148,7 @@ def _full_run_opts(
         netflix_sort_by="",
         netflix_teams=[],
         netflix_work_types=[],
+        since_hours=max(0.0, since_hours),
     )
 
 
@@ -267,6 +277,7 @@ def api_scrape_start():
         all_job_boards = bool(body.get("all_job_boards"))
         risk_per_site = _clamp_risk_per_site(body.get("risk_jobspy_per_site", 3))
         jobs_per_source = _clamp_jobs_per_source(body.get("jobs_per_source", 1))
+        since_hours = _clamp_since_hours(body.get("since_hours", 0))
         if not risk_ip and not all_job_boards:
             _scrape_lock.release()
             return jsonify(
@@ -289,11 +300,16 @@ def api_scrape_start():
                     include_linkedin=risk_ip,
                     risk_per_site=risk_per_site,
                     jobs_per_source=jobs_per_source,
+                    since_hours=since_hours,
                 )
                 configs_ov: list[tuple[str, str]] | None = None
                 eta = 10
             else:
-                opts = _dashboard_opts(risk_ip=risk_ip, risk_per_site=risk_per_site)
+                opts = _dashboard_opts(
+                    risk_ip=risk_ip,
+                    risk_per_site=risk_per_site,
+                    since_hours=since_hours,
+                )
                 configs_ov = build_dashboard_configs(risk_ip=risk_ip)
                 eta = 0
 
@@ -322,6 +338,7 @@ def api_scrape_start():
                         "all_job_boards": all_job_boards,
                         "risk_jobspy_per_site": risk_per_site,
                         "jobs_per_source": jobs_per_source if all_job_boards else None,
+                        "since_hours": since_hours if since_hours > 0 else None,
                         "source_count": len(preview),
                         "sources": [c[0] for c in preview[:40]],
                     }
@@ -330,6 +347,10 @@ def api_scrape_start():
                     "Hint: each [OK] line is jobs kept from that source only (capped per board). "
                     "The same apply URL on multiple boards becomes one output row after dedupe."
                 )
+                if since_hours > 0:
+                    emit_line(
+                        f"Recency mode: last {since_hours:g}h primary window with per-source fallback (7d, then all-time if needed)."
+                    )
                 emit_line(
                     "Title/geo filters also run once at the end — see 'Run summary' below when finished."
                 )

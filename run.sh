@@ -23,7 +23,7 @@ if [ ! -d ".venv" ]; then
   "$PY_BIN" -m venv .venv
 fi
 
-".venv/bin/activate"
+source ".venv/bin/activate"
 
 python -m pip install --upgrade pip >/dev/null
 python -m pip install -r requirements.txt >/dev/null

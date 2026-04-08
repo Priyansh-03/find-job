@@ -1,5 +1,7 @@
 # Job Board RSS Feeds (Verified)
 
+See `docs/README.md` for the full documentation map.
+
 | Board | URL / API | Notes |
 |-------|-----------|-------|
 | **RemoteOK** | API: https://remoteok.com/api, RSS: remote-jobs.rss | ✓ |
