@@ -16,6 +16,14 @@ output/
 logs/
 *.log
 /jobs.csv
+*.zip
+*.tar
+*.tar.gz
+*.tgz
+*.7z
+*.rar
+tmp/
+temp/
 
 # Personal job-search CSV (use input/user.example.csv as template)
 input/user.csv
